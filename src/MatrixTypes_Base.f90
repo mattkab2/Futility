@@ -29,9 +29,9 @@ MODULE MatrixTypes_Base
 ! List of public members
   PUBLIC :: eMatrixType
   PUBLIC :: MatrixType
-  PUBLIC :: SquareMatrixType
-  PUBLIC :: RectMatrixType
-  PUBLIC :: DistributedMatrixType
+  PUBLIC :: ColumnMajorMatrixType
+  PUBLIC :: RowMajorMatrixType
+  PUBLIC :: DiagMajorMatrixType
 
   PUBLIC :: MatrixType_Paramsflag
   !> set enumeration scheme for matrix types
@@ -50,6 +50,7 @@ MODULE MatrixTypes_Base
     LOGICAL(SBK) :: isInit=.FALSE.
     !> Number of rows in the matrix
     INTEGER(SIK) :: n=0
+    !> TODO ADD COMMUNICATOR
 !
 !List of Type Bound Procedures
     CONTAINS
@@ -63,8 +64,10 @@ MODULE MatrixTypes_Base
       PROCEDURE(matrix_set_sub_absintfc),DEFERRED,PASS :: set
       !> Deferred routine for getting a matrix value
       PROCEDURE(matrix_get_sub_absintfc),DEFERRED,PASS :: get
-      !> Deferred routine for getting a matrix value
+      !> Deferred routine for transposing the matrix
       PROCEDURE(matrix_transpose_sub_absintfc),DEFERRED,PASS :: transpose
+      !> Deferred routine for applying the matrix (from the left)
+      PROCEDURE(matrix_apply_sub_absintfc),DEFERRED,PASS :: apply
   ENDTYPE MatrixType
 !
 !List of Abstract Interfaces
@@ -117,56 +120,37 @@ MODULE MatrixTypes_Base
     ENDSUBROUTINE matrix_transpose_sub_absintfc
   ENDINTERFACE
 
-  !> @brief The extended type of matrices for square matrices
-  TYPE,ABSTRACT,EXTENDS(MatrixType) :: SquareMatrixType
-    !> Indicates whether or not the matrix is symmetric
-    LOGICAL(SBK) :: isSymmetric=.FALSE.
-  ENDTYPE SquareMatrixType
+  !> Explicitly defines the interface for the apply routine of all matrix types
+  ABSTRACT INTERFACE matrix_apply_sub_absintfc
+    SUBROUTINE matrix_vector(matrix, vecIn, vecOut)
+      IMPORT :: MatrixType, VectorType
+      CLASS(MatrixType),INTENT(IN) :: matrix
+      CLASS(VectorType),INTENT(IN) :: vecIn
+      CLASS(VectorType),INTENT(OUT) :: vecOut
+    ENDSUBROUTINE matrix_vector
+    SUBROUTINE matrix_matrix(matrixA, matrixB, matrixC)
+      IMPORT :: MatrixType, VectorType
+      CLASS(MatrixType),INTENT(IN) :: matrixA
+      CLASS(MatrixType),INTENT(IN) :: matrixB
+      CLASS(MatrixType),INTENT(OUT) :: matrixC
+    ENDSUBROUTINE matrix_matrix
+  ENDINTERFACE matrix_apply_sub_absintfc
 
-  !> @brief The extended type for rectangular matrices
-  TYPE,ABSTRACT,EXTENDS(MatrixType) :: RectMatrixType
-    !> The number of columns
-    INTEGER(SIK) :: m=0
-  ENDTYPE RectMatrixType
+  !> @brief The extended type of matrices for compressed-row storage
+  TYPE,ABSTRACT,EXTENDS(MatrixType) :: RowMajorMatrixType
+  ENDTYPE RowMajorMatrixType
 
-  !> @brief The extended type for distributed matrices (e.g. PETSc, Trilinos)
-  TYPE,ABSTRACT,EXTENDS(SquareMatrixType) :: DistributedMatrixType
+  !> @brief The extended type of matrices for compressed-col storage
+  TYPE,ABSTRACT,EXTENDS(MatrixType) :: ColMajorMatrixType
+  ENDTYPE ColMajorMatrixType
 
-    !> creation status
-    LOGICAL(SBK) :: isCreated=.FALSE.
-    !> assembly status
-    LOGICAL(SBK) :: isAssembled=.FALSE.
-    !> MPI comm ID
-    INTEGER(SIK) :: comm=-1
-    !> number of local values
-    INTEGER(SIK) :: nlocal=0
-!
-!List of Type Bound Procedures
-    CONTAINS
-      !> Deferred routine for assembling a matrix
-      PROCEDURE(distmatrix_assemble_absintfc),DEFERRED,PASS :: assemble
-      !> Deferred routine for setting a row at a time
-      PROCEDURE(distmatrix_setRow_absintfc),DEFERRED,PASS :: setRow
-  ENDTYPE DistributedMatrixType
+  !> @brief The extended type of matrices for compressed-diag storage
+  TYPE,ABSTRACT,EXTENDS(MatrixType) :: DiagMajorMatrixType
+  ENDTYPE DiagMajorMatrixType
 
-  !> Explicitly defines the interface for assembling a distributed matrix
-  ABSTRACT INTERFACE
-    SUBROUTINE distmatrix_assemble_absintfc(thisMatrix,ierr)
-      IMPORT :: SIK,DistributedMatrixType
-      CLASS(DistributedMatrixType),INTENT(INOUT) :: thisMatrix
-      INTEGER(SIK),INTENT(OUT),OPTIONAL :: ierr
-    ENDSUBROUTINE distmatrix_assemble_absintfc
-  ENDINTERFACE
-
-  !> Explicitly defines the interface for setting row of a distributed matrix
-  ABSTRACT INTERFACE
-    SUBROUTINE distmatrix_setRow_absintfc(matrix,i,j,setval)
-      IMPORT :: SIK,SRK,DistributedMatrixType
-      CLASS(DistributedMatrixType),INTENT(INOUT) :: matrix
-      INTEGER(SIK),INTENT(IN) :: i, j(:)
-      REAL(SRK),INTENT(IN) :: setval(:)
-    ENDSUBROUTINE distmatrix_setRow_absintfc
-  ENDINTERFACE
+  !> @brief The extended type of matrices for block-matrix
+  TYPE,ABSTRACT,EXTENDS(MatrixType) :: DiagMajorMatrixType
+  ENDTYPE DiagMajorMatrixType
 
   !> The parameter lists to use when validating a parameter list for
   !> initialization for a Sparse Matrix Type.
